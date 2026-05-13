@@ -132,7 +132,7 @@ async function refresh(req, res){
             return res.status(401).json({error: 'invalid or expired refresh token' })
         }
 
-        // user lookup again
+        // user lookup again (new token reflects current user role)
         const result = await require('../db').query(
             'SELECT * FROM users WHERE id = $1',
             [payload.sub]
