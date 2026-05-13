@@ -58,7 +58,53 @@ async function register(req, res) {
     }
 }
 
-async function login(req, res){}
+async function login(req, res){
+    try {
+        const validation = loginSchema.safeParse(req.body)
+        if (!validation.success) {
+            return res.status(400).json({
+                error: 'invalid data',
+                details: validation.error.errors.map(e => ({
+                    field: e.path[0],
+                    message: e.message,
+                })),
+            })
+        }
+
+        const {email, password} = validation.data
+        const user = await authService.findUserByEmail(email)
+
+        const dummyHash = '$2b$12$AAAAAAAAAAAAAAAAAAAAAA.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
+        // for protection from timing attack
+        const passwordMatch = await authService.verifyPassword(
+            password,
+            user ? user.password : dummyHash
+        )
+
+        if (!user || !passwordMatch) {
+            return res.status(401).json({ error: 'invalid credentials' })
+        }
+
+        const accessToken = authService.generateAccessToken(user)
+        const refreshToken = authService.generateRefreshToken(user)
+
+        await authService.saveRefreshToken(user.id, refreshToken)
+
+        return res.status(200).json({
+            accessToken,
+            refreshToken,
+            user: {
+                id: user.id,
+                email: user.email,
+                role: user.role,
+            },
+        })
+        // 200 ok.  improvement: refresh token on cookie not body
+    } catch(err) {
+        console.log('login error:', err)
+        return res.status(500).json({error: 'internal server error'})
+    }
+}
 
 async function refresh(req, res){}
 
