@@ -106,11 +106,76 @@ async function login(req, res){
     }
 }
 
-async function refresh(req, res){}
+async function refresh(req, res){
+    try{
+        const validation = refreshSchema.safeParse(req.body)
+        if (!validation.success) {
+            return res.status(400).json({ error: 'refresh token required' })
+        }
 
-async function logout(req, res){}
+        const {refreshToken} = validation.data
 
-async function me(req, res){}
+        let payload
+        try {
+            payload = authService.verifyRefreshToken(refreshToken)
+            // cryptographic token validation
+        } catch(err){
+            // JsonWebTokenError: malformed token or invalid sign
+            // TokenExpiredError: expired token
+            return res.status(401).json({error: 'invalid or expired refresh token'})
+            // 401 unauthorized
+        }
+
+        // check token exists on DB for handling logout
+        const storedToken = await authService.findRefreshToken(refreshToken)
+        if (!storedToken) {
+            return res.status(401).json({error: 'invalid or expired refresh token' })
+        }
+
+        // user lookup again
+        const result = await require('../db').query(
+            'SELECT * FROM users WHERE id = $1',
+            [payload.sub]
+        )
+        const user = result.rows[0]
+
+        if (!user) {
+            return res.status(401).json({ error: 'user not found' })
+        }
+
+        const newAccessToken = authService.generateAccessToken(user)
+
+        return res.status(200).json({ accessToken: newAccessToken })
+
+    } catch(err){
+        console.error('refresh error:', err)
+        return res.status(500).json({error: 'internal server error'})
+    }
+}
+
+async function logout(req, res){
+    try {
+        const validation = refreshSchema.safeParse(req.body)
+        if (!validation.success) {
+            return res.status(400).json({ error: 'refresh token required' })
+        }
+
+        const { refreshToken } = validation.data
+
+        await authService.deleteRefreshToken(refreshToken)
+        // delete token from DB
+
+        return res.status(200).json({ message: 'logged out successfully' })
+
+    } catch(err) {
+        console.error('logout error:', err)
+        return res.status(500).json({error: 'internal server error'})
+    }
+}
+
+async function me(req, res){
+    return res.status(200).json({ user: req.user })
+}
 
 
 module.exports = {register, login, refresh, logout, me}
