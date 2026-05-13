@@ -37,8 +37,17 @@ function authenticate(req, res, next){
     }
 
 
+    // Middleware authorizes by role of req.user (always after authenticate)
+
     function authorize(...roles){
-        
+        return (req, res, next) => {
+            if (!roles.includes(req.user.role)){
+                return res.status(403).json({error: 'action not allowed'})
+            }
+            // 403 Forbidden - authenticated but not allowed
+
+            next()
+        }        
     }
 
 
